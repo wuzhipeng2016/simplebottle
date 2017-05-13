@@ -4,15 +4,11 @@
 copy from bottle
 License: MIT (see LICENSE for details)
 """
-
 from __future__ import with_statement
-
 __author__ = 'Marcel Hellkamp'
 __version__ = '0.12.13'
 __license__ = 'MIT'
 
-# The gevent server adapter needs to patch some modules before they are imported
-# This is why we parse the commandline parameters here but handle them later
 if __name__ == '__main__':
     from optparse import OptionParser
     _cmd_parser = OptionParser(usage="usage: %prog [options] package.module:app")
@@ -24,11 +20,9 @@ if __name__ == '__main__':
     _opt("--debug", action="store_true", help="start server in debug mode.")
     _opt("--reload", action="store_true", help="auto-reload on file changes.")
     _cmd_options, _cmd_args = _cmd_parser.parse_args()
-    if _cmd_options.server and _cmd_options.server.startswith('gevent'):
-        import gevent.monkey; gevent.monkey.patch_all()
 
-import base64, cgi, email.utils, functools, hmac, imp, itertools, mimetypes,\
-        os, re, subprocess, sys, tempfile, threading, time, warnings
+import base64, cgi, email.utils, functools, hmac, imp, itertools, mimetypes
+import os, re, subprocess, sys, tempfile, threading, time, warnings
 from datetime import date as datedate, datetime, timedelta
 from tempfile import TemporaryFile
 from traceback import format_exc, print_exc
@@ -38,13 +32,7 @@ from json import dumps as json_dumps, loads as json_lds
 
 def _e(): return sys.exc_info()[1]
 
-# Workaround for the "print is a keyword/function" Python 2/3 dilemma
-# and a fallback for mod_wsgi (resticts stdout/err attribute access)
-try:
-    _stdout, _stderr = sys.stdout.write, sys.stderr.write
-except IOError:
-    _stdout = lambda x: sys.stdout.write(x)
-    _stderr = lambda x: sys.stderr.write(x)
+_stdout, _stderr = sys.stdout.write, sys.stderr.write
 
 # Lots of stdlib and builtin differences.
 import http.client as httplib
@@ -78,7 +66,6 @@ def update_wrapper(wrapper, wrapped, *a, **ka):
 
 # These helpers are used at module level and need to be defined first.
 # And yes, I know PEP-8, but sometimes a lower-case classname makes more sense.
-
 def depr(message, hard=False):
     warnings.warn(message, DeprecationWarning, stacklevel=3)
 
@@ -88,7 +75,6 @@ def makelist(data): # This is just to handy
     else: return []
 
 class DictProperty(object):
-    ''' Property that maps to a key in a local dict-like attribute. '''
     def __init__(self, attr, key=None, read_only=False):
         self.attr, self.key, self.read_only = attr, key, read_only
 
@@ -131,16 +117,8 @@ class lazy_attribute(object):
         setattr(cls, self.__name__, value)
         return value
 
-###############################################################################
-# Exceptions and Events ########################################################
-###############################################################################
-
 class BottleException(Exception): pass
-
-###############################################################################
 # Routing ######################################################################
-###############################################################################
-
 class RouteError(BottleException):
     """ This is a base class for all routing related exceptions """
 
@@ -164,7 +142,6 @@ def _re_flatten(p):
 class Router(object):
     default_pattern = '[^/]+'
     default_filter  = 're'
-
     _MAX_GROUPS_PER_PATTERN = 99
 
     def __init__(self, strict=False):
@@ -209,7 +186,6 @@ class Router(object):
             yield prefix+rule[offset:], None, None
 
     def add(self, rule, method, target, name=None):
-        ''' Add a new rule or replace the target for an existing rule. '''
         anons     = 0    # Number of anonymous wildcards found
         keys      = []   # Names of keys
         pattern   = ''   # Regular expression pattern with named groups
@@ -291,7 +267,6 @@ class Router(object):
             comborules.append((combined, rules))
 
     def build(self, _name, *anons, **query):
-        ''' Build an URL by filling the wildcards in a rule. '''
         builder = self.builder.get(_name)
         if not builder: raise RouteBuildError("No route with that name.", _name)
         try:
@@ -302,7 +277,6 @@ class Router(object):
             raise RouteBuildError('Missing URL argument: %r' % _e().args[0])
 
     def match(self, environ):
-        ''' Return a (target, url_agrs) tuple or raise HTTPError(400/404/405). '''
         verb = environ['REQUEST_METHOD'].upper()
         path = environ['PATH_INFO'] or '/'
         target = None
@@ -431,9 +405,7 @@ class Route(object):
         cb = self.get_undecorated_callback()
         return '<%s %r %r>' % (self.method, self.rule, cb)
 
-###############################################################################
 # Application Object ###########################################################
-###############################################################################
 
 class Bottle(object):
     def __init__(self, catchall=True, autojson=True):
@@ -686,7 +658,6 @@ class Bottle(object):
             out.apply(response)
             return self._cast(out.body)
 
-        # File-like objects.
         if hasattr(out, 'read'):
             if 'wsgi.file_wrapper' in request.environ:
                 return request.environ['wsgi.file_wrapper'](out)
@@ -754,10 +725,7 @@ class Bottle(object):
         ''' Each instance of :class:'Bottle' is a WSGI application. '''
         return self.wsgi(environ, start_response)
 
-###############################################################################
 # HTTP and WSGI Tools ##########################################################
-###############################################################################
-
 class BaseRequest(object):
     __slots__ = ('environ')
 
@@ -1078,19 +1046,16 @@ class BaseRequest(object):
         if name == 'environ': return object.__setattr__(self, name, value)
         self.environ['bottle.request.ext.%s'%name] = value
 
-
 def _hkey(key):
     if '\n' in key or '\r' in key or '\0' in key:
         raise ValueError("Header names must not contain control characters: %r" % key)
     return key.title().replace('_', '-')
-
 
 def _hval(value):
     value = tonat(value)
     if '\n' in value or '\r' in value or '\0' in value:
         raise ValueError("Header value must not contain control characters: %r" % value)
     return value
-
 
 class HeaderProperty(object):
     def __init__(self, name, reader=None, writer=None, default=''):
@@ -1108,7 +1073,6 @@ class HeaderProperty(object):
 
     def __delete__(self, obj):
         del obj[self.name]
-
 
 class BaseResponse(object):
     default_status = 200
@@ -1260,8 +1224,6 @@ class BaseResponse(object):
             self._cookies[name][key.replace('_', '-')] = value
 
     def delete_cookie(self, key, **kwargs):
-        ''' Delete a cookie. Be sure to use the same `domain` and `path`
-            settings as used to create the cookie. '''
         kwargs['max_age'] = -1
         kwargs['expires'] = 0
         self.set_cookie(key, '', **kwargs)
@@ -1284,23 +1246,11 @@ def local_property(name=None):
     def fdel(self): del ls.var
     return property(fget, fset, fdel, 'Thread-local property')
 
-
 class LocalRequest(BaseRequest):
-    ''' A thread-local subclass of :class:`BaseRequest` with a different
-        set of attributes for each thread. There is usually only one global
-        instance of this class (:data:`request`). If accessed during a
-        request/response cycle, this instance always refers to the *current*
-        request (even on a multithreaded server). '''
     bind = BaseRequest.__init__
     environ = local_property()
 
-
 class LocalResponse(BaseResponse):
-    ''' A thread-local subclass of :class:`BaseResponse` with a different
-        set of attributes for each thread. There is usually only one global
-        instance of this class (:data:`response`). Its attributes are used
-        to build the HTTP response at the end of the request/response cycle.
-    '''
     bind = BaseResponse.__init__
     _status_line = local_property()
     _status_code = local_property()
@@ -1308,10 +1258,8 @@ class LocalResponse(BaseResponse):
     _headers     = local_property()
     body         = local_property()
 
-
 Request = BaseRequest
 Response = BaseResponse
-
 
 class HTTPResponse(Response, BottleException):
     def __init__(self, body='', status=None, headers=None, **more_headers):
@@ -1324,7 +1272,6 @@ class HTTPResponse(Response, BottleException):
         response._cookies = self._cookies
         response.body = self.body
 
-
 class HTTPError(HTTPResponse):
     default_status = 500
     def __init__(self, status=None, body=None, exception=None, traceback=None,
@@ -1333,16 +1280,9 @@ class HTTPError(HTTPResponse):
         self.traceback = traceback
         super(HTTPError, self).__init__(body, status, **options)
 
-
-
-
-
-###############################################################################
 # Plugins ######################################################################
-###############################################################################
 
 class PluginError(BottleException): pass
-
 
 class JSONPlugin(object):
     name = 'json'
@@ -1373,12 +1313,7 @@ class JSONPlugin(object):
 
         return wrapper
 
-
 class TemplatePlugin(object):
-    ''' This plugin applies the :func:`view` decorator to all routes with a
-        `template` config parameter. If the parameter is a tuple, the second
-        element must be a dict with additional options (e.g. `template_engine`)
-        or default variables for the template. '''
     name = 'template'
     api  = 2
 
@@ -1390,7 +1325,6 @@ class TemplatePlugin(object):
             return view(conf)(callback)
         else:
             return callback
-
 
 #: Not a plugin, but part of the plugin API. TODO: Find a better place.
 class _ImportRedirect(object):
@@ -1419,22 +1353,8 @@ class _ImportRedirect(object):
         module.__loader__ = self
         return module
 
-
-
-
-
-
-###############################################################################
 # Common Utilities #############################################################
-###############################################################################
-
-
 class MultiDict(DictMixin):
-    """ This dict stores multiple values per key, but behaves exactly like a
-        normal dict in that it returns only the newest value for any given key.
-        There are special methods available to access the full list of values.
-    """
-
     def __init__(self, *a, **k):
         self.dict = dict((k, [v]) for (k, v) in dict(*a, **k).items())
 
@@ -1456,15 +1376,6 @@ class MultiDict(DictMixin):
     iterallitems = allitems
 
     def get(self, key, default=None, index=-1, type=None):
-        ''' Return the most recent value for a key.
-
-            :param default: The default value to be returned if the key is not
-                   present or the type conversion fails.
-            :param index: An index for the list of available values.
-            :param type: If defined, this callable is used to cast the value
-                    into a specific type. Exception are suppressed and result in
-                    the default value to be returned.
-        '''
         try:
             val = self.dict[key][index]
             return type(val) if type else val
@@ -1488,15 +1399,7 @@ class MultiDict(DictMixin):
     getone = get
     getlist = getall
 
-
 class FormsDict(MultiDict):
-    ''' This :class:`MultiDict` subclass is used to store request form data.
-        Additionally to the normal dict-like item access methods (which return
-        unmodified data as native strings), this container also supports
-        attribute-like access to its values. Attributes are automatically de-
-        or recoded to match :attr:`input_encoding` (default: 'utf8'). Missing
-        attributes default to an empty string. '''
-
     #: Encoding used for attribute values.
     input_encoding = 'utf8'
     #: If true (default), unicode strings are first encoded with `latin1`
@@ -1512,9 +1415,6 @@ class FormsDict(MultiDict):
             return s
 
     def decode(self, encoding=None):
-        ''' Returns a copy with all keys and values de- or recoded to match
-            :attr:`input_encoding`. Some libraries (e.g. WTForms) want a
-            unicode dictionary. '''
         copy = FormsDict()
         enc = copy.input_encoding = encoding or self.input_encoding
         copy.recode_unicode = False
@@ -1536,9 +1436,6 @@ class FormsDict(MultiDict):
         return self.getunicode(name, default=default)
 
 class HeaderDict(MultiDict):
-    """ A case-insensitive version of :class:`MultiDict` that defaults to
-        replace the old value instead of appending it. """
-
     def __init__(self, *a, **ka):
         self.dict = {}
         if a or ka: self.update(*a, **ka)
@@ -1557,18 +1454,7 @@ class HeaderDict(MultiDict):
             if name in self.dict:
                 del self.dict[name]
 
-
 class WSGIHeaderDict(DictMixin):
-    ''' This dict-like class wraps a WSGI environ dict and provides convenient
-        access to HTTP_* fields. Keys and values are native strings
-        (2.x bytes or 3.x unicode) and keys are case-insensitive. If the WSGI
-        environment contains non-native string values, these are de- or encoded
-        using a lossless 'latin1' character set.
-
-        The API will remain stable even on changes to the relevant PEPs.
-        Currently PEP 333, 444 and 3333 are supported. (PEP 444 is the only one
-        that uses non-native strings.)
-    '''
     #: List of keys that do not have a ``HTTP_`` prefix.
     cgikeys = ('CONTENT_TYPE', 'CONTENT_LENGTH')
 
@@ -1606,20 +1492,9 @@ class WSGIHeaderDict(DictMixin):
     def __len__(self): return len(self.keys())
     def __contains__(self, key): return self._ekey(key) in self.environ
 
-
-
 class ConfigDict(dict):
-    ''' A dict-like configuration storage with additional support for
-        namespaces, validators, meta-data, on_change listeners and more.
-
-        This storage is optimized for fast read access. Retrieving a key
-        or using non-altering dict methods (e.g. `dict.get()`) has no overhead
-        compared to a native dict.
-    '''
     __slots__ = ('_meta', '_on_change')
-
     class Namespace(DictMixin):
-
         def __init__(self, config, namespace):
             self._config = config
             self._prefix = namespace
@@ -1649,7 +1524,6 @@ class ConfigDict(dict):
         def __repr__(self): return '<Config.Namespace %s.*>' % self._prefix
         def __str__(self): return '<Config.Namespace %s.*>' % self._prefix
 
-        # Deprecated ConfigDict features
         def __getattr__(self, key):
             depr('Attribute access is deprecated.') #0.12
             if key not in self and key[0].isupper():
@@ -1691,12 +1565,6 @@ class ConfigDict(dict):
             self.update(*a, **ka)
 
     def load_config(self, filename):
-        ''' Load values from an *.ini style config file.
-
-            If the config file contains sections, their names are used as
-            namespaces for the values within. The two special sections
-            ``DEFAULT`` and ``bottle`` refer to the root namespace (no prefix).
-        '''
         conf = ConfigParser()
         conf.read(filename)
         for section in conf.sections():
@@ -1707,12 +1575,6 @@ class ConfigDict(dict):
         return self
 
     def load_dict(self, source, namespace='', make_namespaces=False):
-        ''' Import values from a dictionary structure. Nesting can be used to
-            represent namespaces.
-
-            >>> ConfigDict().load_dict({'name': {'space': {'key': 'value'}}})
-            {'name.space.key': 'value'}
-        '''
         stack = [(namespace, source)]
         while stack:
             prefix, source = stack.pop()
@@ -1731,9 +1593,6 @@ class ConfigDict(dict):
         return self
 
     def update(self, *a, **ka):
-        ''' If the first parameter is a string, all keys are prefixed with this
-            namespace. Apart from that it works just as the usual dict.update().
-            Example: ``update('some.namespace', key='value')`` '''
         prefix = ''
         if a and isinstance(a[0], basestring):
             prefix = a[0].strip('.') + '.'
@@ -1764,21 +1623,16 @@ class ConfigDict(dict):
             del self[key]
 
     def meta_get(self, key, metafield, default=None):
-        ''' Return the value of a meta field for a key. '''
         return self._meta.get(key, {}).get(metafield, default)
 
     def meta_set(self, key, metafield, value):
-        ''' Set the meta field for a key to a new value. This triggers the
-            on-change handler for existing keys. '''
         self._meta.setdefault(key, {})[metafield] = value
         if key in self:
             self[key] = self[key]
 
     def meta_list(self, key):
-        ''' Return an iterable of meta field names defined for a key. '''
         return self._meta.get(key, {}).keys()
 
-    # Deprecated ConfigDict features
     def __getattr__(self, key):
         depr('Attribute access is deprecated.') #0.12
         if key not in self and key[0].isupper():
@@ -1811,25 +1665,17 @@ class ConfigDict(dict):
         self.update(*a, **ka)
         return self
 
-
-
 class AppStack(list):
-    """ A stack-like list. Calling it returns the head of the stack. """
-
     def __call__(self):
-        """ Return the current default application. """
         return self[-1]
 
     def push(self, value=None):
-        """ Add a new :class:`Bottle` instance to the stack """
         if not isinstance(value, Bottle):
             value = Bottle()
         self.append(value)
         return value
 
-
 class WSGIFileWrapper(object):
-
     def __init__(self, fp, buffer_size=1024*64):
         self.fp, self.buffer_size = fp, buffer_size
         for attr in ('fileno', 'close', 'read', 'readlines', 'tell', 'seek'):
@@ -1842,11 +1688,7 @@ class WSGIFileWrapper(object):
             if not part: return
             yield part
 
-
 class _closeiter(object):
-    ''' This only exists to be able to attach a .close method to iterators that
-        do not support attribute assignment (most of itertools). '''
-
     def __init__(self, iterator, close=None):
         self.iterator = iterator
         self.close_callbacks = makelist(close)
@@ -1858,17 +1700,7 @@ class _closeiter(object):
         for func in self.close_callbacks:
             func()
 
-
 class ResourceManager(object):
-    ''' This class manages a list of search paths and helps to find and open
-        application-bound resources (files).
-
-        :param base: default value for :meth:`add_path` calls.
-        :param opener: callable used to open resources.
-        :param cachemode: controls which lookups are cached. One of 'all',
-                         'found' or 'none'.
-    '''
-
     def __init__(self, base='./', opener=open, cachemode='all'):
         self.opener = open
         self.base = base
@@ -1880,22 +1712,6 @@ class ResourceManager(object):
         self.cache = {}
 
     def add_path(self, path, base=None, index=None, create=False):
-        ''' Add a new path to the list of search paths. Return False if the
-            path does not exist.
-
-            :param path: The new search path. Relative paths are turned into
-                an absolute and normalized form. If the path looks like a file
-                (not ending in `/`), the filename is stripped off.
-            :param base: Path used to absolutize relative search paths.
-                Defaults to :attr:`base` which defaults to ``os.getcwd()``.
-            :param index: Position within the list of search paths. Defaults
-                to last index (appends to the list).
-
-            The `base` parameter makes it easy to reference files installed
-            along with a python module or package::
-
-                res.add_path('./resources/', __file__)
-        '''
         base = os.path.abspath(os.path.dirname(base or self.base))
         path = os.path.abspath(os.path.join(base, os.path.dirname(path)))
         path += os.sep
@@ -1922,11 +1738,6 @@ class ResourceManager(object):
                 else: yield full
 
     def lookup(self, name):
-        ''' Search for a resource and return an absolute file path, or `None`.
-
-            The :attr:`path` list is searched in order. The first match is
-            returend. Symlinks are followed. The result is cached to speed up
-            future lookups. '''
         if name not in self.cache or DEBUG:
             for path in self.path:
                 fpath = os.path.join(path, name)
@@ -1946,9 +1757,7 @@ class ResourceManager(object):
 
 
 class FileUpload(object):
-
     def __init__(self, fileobj, name, filename, headers=None):
-        ''' Wrapper for file uploads. '''
         #: Open file(-like) object (BytesIO buffer or temporary file)
         self.file = fileobj
         #: Name of the upload form field
@@ -1962,19 +1771,10 @@ class FileUpload(object):
     content_length = HeaderProperty('Content-Length', reader=int, default=-1)
 
     def get_header(self, name, default=None):
-        """ Return the value of a header within the mulripart part. """
         return self.headers.get(name, default)
 
     @cached_property
     def filename(self):
-        ''' Name of the file on the client file system, but normalized to ensure
-            file system compatibility. An empty filename is returned as 'empty'.
-
-            Only ASCII letters, digits, dashes, underscores and dots are
-            allowed in the final filename. Accents are removed, if possible.
-            Whitespace is replaced by a single dash. Leading or tailing dots
-            or dashes are removed. The filename is limited to 255 characters.
-        '''
         fname = self.raw_filename
         if not isinstance(fname, unicode):
             fname = fname.decode('utf8', 'ignore')
@@ -1993,14 +1793,6 @@ class FileUpload(object):
         self.file.seek(offset)
 
     def save(self, destination, overwrite=False, chunk_size=2**16):
-        ''' Save file to disk or copy its content to an open file(-like) object.
-            If *destination* is a directory, :attr:`filename` is added to the
-            path. Existing files are not overwritten by default (IOError).
-
-            :param destination: File path, directory or file(-like) object.
-            :param overwrite: If True, replace existing files. (default: False)
-            :param chunk_size: Bytes to read at a time. (default: 64kb)
-        '''
         if isinstance(destination, basestring): # Except file-likes here
             if os.path.isdir(destination):
                 destination = os.path.join(destination, self.filename)
@@ -2011,24 +1803,12 @@ class FileUpload(object):
         else:
             self._copy_file(destination, chunk_size)
 
-
-
-
-
-
-###############################################################################
 # Application Helper ###########################################################
-###############################################################################
-
 
 def abort(code=500, text='Unknown Error.'):
-    """ Aborts execution and causes a HTTP error. """
     raise HTTPError(code, text)
 
-
 def redirect(url, code=None):
-    """ Aborts execution and causes a 303 or 302 redirect, depending on
-        the HTTP protocol version. """
     if not code:
         code = 303 if request.get('SERVER_PROTOCOL') == "HTTP/1.1" else 302
     res = response.copy(cls=HTTPResponse)
@@ -2037,9 +1817,7 @@ def redirect(url, code=None):
     res.set_header('Location', urljoin(request.url, url))
     raise res
 
-
 def _file_iter_range(fp, offset, bytes, maxread=1024*1024):
-    ''' Yield chunks from a range in a file. No chunk is bigger than maxread.'''
     fp.seek(offset)
     while bytes > 0:
         part = fp.read(min(bytes, maxread))
@@ -2047,27 +1825,7 @@ def _file_iter_range(fp, offset, bytes, maxread=1024*1024):
         bytes -= len(part)
         yield part
 
-
 def static_file(filename, root, mimetype='auto', download=False, charset='UTF-8'):
-    """ Open a file in a safe way and return :exc:`HTTPResponse` with status
-        code 200, 305, 403 or 404. The ``Content-Type``, ``Content-Encoding``,
-        ``Content-Length`` and ``Last-Modified`` headers are set if possible.
-        Special support for ``If-Modified-Since``, ``Range`` and ``HEAD``
-        requests.
-
-        :param filename: Name or path of the file to send.
-        :param root: Root path for file lookups. Should be an absolute directory
-            path.
-        :param mimetype: Defines the content-type header (default: guess from
-            file extension)
-        :param download: If True, ask the browser to open a `Save as...` dialog
-            instead of opening the file with the associated program. You can
-            specify a custom filename as a string. If not specified, the
-            original filename is used (default: False).
-        :param charset: The charset to use for files with a ``text/*``
-            mime-type. (default: UTF-8)
-    """
-
     root = os.path.abspath(root) + os.sep
     filename = os.path.abspath(os.path.join(root, filename.strip('/\\')))
     headers = dict()
@@ -2119,15 +1877,7 @@ def static_file(filename, root, mimetype='auto', download=False, charset='UTF-8'
         return HTTPResponse(body, status=206, **headers)
     return HTTPResponse(body, **headers)
 
-
-
-
-
-
-###############################################################################
 # HTTP Utilities and MISC (TODO) ###############################################
-###############################################################################
-
 
 def debug(mode=True):
     """ Change the debug level.
@@ -2146,7 +1896,6 @@ def http_date(value):
     return value
 
 def parse_date(ims):
-    """ Parse rfc1123, rfc850 and asctime timestamps and return UTC epoch. """
     try:
         ts = email.utils.parsedate_tz(ims)
         return time.mktime(ts[:8] + (0,)) - (ts[9] or 0) - time.timezone
@@ -2154,7 +1903,6 @@ def parse_date(ims):
         return None
 
 def parse_auth(header):
-    """ Parse rfc2617 HTTP authentication header string (basic) and return (user,pass) tuple or None"""
     try:
         method, data = header.split(None, 1)
         if method.lower() == 'basic':
@@ -2164,8 +1912,6 @@ def parse_auth(header):
         return None
 
 def parse_range_header(header, maxlen=0):
-    ''' Yield (start, end) ranges parsed from a HTTP Range header. Skip
-        unsatisfiable ranges. The end index is non-inclusive.'''
     if not header or header[:6] != 'bytes=': return
     ranges = [r.split('-', 1) for r in header[6:].split(',') if '-' in r]
     for start, end in ranges:
@@ -2193,20 +1939,14 @@ def _parse_qsl(qs):
     return r
 
 def _lscmp(a, b):
-    ''' Compares two strings in a cryptographically safe way:
-        Runtime is not affected by length of common prefix. '''
     return not sum(0 if x==y else 1 for x, y in zip(a, b)) and len(a) == len(b)
 
-
 def cookie_encode(data, key):
-    ''' Encode and sign a pickle-able object. Return a (byte) string '''
     msg = base64.b64encode(pickle.dumps(data, -1))
     sig = base64.b64encode(hmac.new(tob(key), msg).digest())
     return tob('!') + sig + tob('?') + msg
 
-
 def cookie_decode(data, key):
-    ''' Verify and decode an encoded string. Return an object or None.'''
     data = tob(data)
     if cookie_is_encoded(data):
         sig, msg = data.split(tob('?'), 1)
@@ -2214,34 +1954,19 @@ def cookie_decode(data, key):
             return pickle.loads(base64.b64decode(msg))
     return None
 
-
 def cookie_is_encoded(data):
     ''' Return True if the argument looks like a encoded cookie.'''
     return bool(data.startswith(tob('!')) and tob('?') in data)
 
-
 def html_escape(string):
-    ''' Escape HTML special characters ``&<>`` and quotes ``'"``. '''
     return string.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')\
                  .replace('"','&quot;').replace("'",'&#039;')
 
-
 def html_quote(string):
-    ''' Escape and quote a string to be used as an HTTP attribute.'''
     return '"%s"' % html_escape(string).replace('\n','&#10;')\
                     .replace('\r','&#13;').replace('\t','&#9;')
 
-
 def yieldroutes(func):
-    """ Return a generator for routes that match the signature (name, args)
-    of the func parameter. This may yield more than one route if the function
-    takes optional keyword arguments. The output is best described by example::
-
-        a()         -> '/a'
-        b(x, y)     -> '/b/<x>/<y>'
-        c(x, y=5)   -> '/c/<x>' and '/c/<x>/<y>'
-        d(x=5, y=6) -> '/d' and '/d/<x>' and '/d/<x>/<y>'
-    """
     path = '/' + func.__name__.replace('__','/').lstrip('/')
     spec = getargspec(func)
     argc = len(spec[0]) - len(spec[3] or [])
@@ -2251,16 +1976,7 @@ def yieldroutes(func):
         path += '/<%s>' % arg
         yield path
 
-
 def path_shift(script_name, path_info, shift=1):
-    ''' Shift path fragments from PATH_INFO to SCRIPT_NAME and vice versa.
-
-        :return: The modified paths.
-        :param script_name: The SCRIPT_NAME path.
-        :param script_name: The PATH_INFO path.
-        :param shift: The number of path fragments to shift. May be negative to
-          change the shift direction. (default: 1)
-    '''
     if shift == 0: return script_name, path_info
     pathlist = path_info.strip('/').split('/')
     scriptlist = script_name.strip('/').split('/')
@@ -2320,16 +2036,7 @@ install   = make_default_app_wrapper('install')
 uninstall = make_default_app_wrapper('uninstall')
 url       = make_default_app_wrapper('get_url')
 
-
-
-
-
-
-
-###############################################################################
 # Server Adapter ###############################################################
-###############################################################################
-
 
 class ServerAdapter(object):
     quiet = False
@@ -2344,7 +2051,6 @@ class ServerAdapter(object):
     def __repr__(self):
         args = ', '.join(['%s=%s'%(k,repr(v)) for k, v in self.options.items()])
         return "%s(%s)" % (self.__class__.__name__, args)
-
 
 class WSGIRefServer(ServerAdapter):
     def run(self, app): # pragma: no cover
@@ -2374,9 +2080,7 @@ server_names = {
     'wsgiref': WSGIRefServer
 }
 
-###############################################################################
 # Application Control ##########################################################
-###############################################################################
 
 def load(target, **namespace):
     module, target = target.split(":", 1) if ':' in target else (target, None)
@@ -2386,7 +2090,6 @@ def load(target, **namespace):
     package_name = module.split('.')[0]
     namespace[package_name] = sys.modules[package_name]
     return eval('%s.%s' % (module, target), namespace)
-
 
 def load_app(target):
     global NORUN; NORUN, nr_old = True, NORUN
@@ -2510,14 +2213,11 @@ class FileCheckerThread(threading.Thread):
         self.join()
         return exc_type is not None and issubclass(exc_type, KeyboardInterrupt)
 
-###############################################################################
 # Template Adapters ############################################################
-###############################################################################
 
 class TemplateError(HTTPError):
     def __init__(self, message):
         HTTPError.__init__(self, 500, message)
-
 
 class BaseTemplate(object):
     extensions = ['tpl','html','thtml','stpl']
@@ -2888,9 +2588,7 @@ def view(tpl_name, **defaults):
 
 jinja2_view = functools.partial(view, template_adapter=Jinja2Template)
 
-###############################################################################
 # Constants and Globals ########################################################
-###############################################################################
 
 TEMPLATE_PATH = ['./', './views/']
 TEMPLATES = {}
@@ -2943,13 +2641,7 @@ ERROR_PAGE_TEMPLATE = """
 %%end
 """ % __name__
 
-#: A thread-safe instance of :class:`LocalRequest`. If accessed from within a
-#: request callback, this instance always refers to the *current* request
-#: (even on a multithreaded server).
 request = LocalRequest()
-
-#: A thread-safe instance of :class:`LocalResponse`. It is used to change the
-#: HTTP response for the *current* request.
 response = LocalResponse()
 
 #: A thread-safe namespace. Not used by Bottle.
